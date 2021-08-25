@@ -2,7 +2,7 @@ from django.shortcuts import render
 from django.http import JsonResponse
 from django.http import HttpResponse
 from django.views.generic import ListView
-from .models import AddProject, CreateTask
+from .models import AddProject, CreateTask, AddWorkspace
 import json
 from django.contrib.auth.models import User
 from django.views.decorators.csrf import csrf_exempt
@@ -91,3 +91,36 @@ def createtask(request):
         CreateTask.objects.filter(task_name=params.get('')).update(assign='prachi')
         return JsonResponse({'message': 'Success', 'data': "result"})
 
+
+@csrf_exempt
+def addworkspace(request):
+    if request.method == "GET":
+        result = []
+        addworkspaces = AddWorkspace.objects.all()
+        for addworkspace in addworkspaces:
+            data = {
+                'id' : addworkspace.id,
+                # "spacename": addworkspace.name,
+                "workspace" : addworkspace.workspace,
+            }
+            result.append(data)
+        return JsonResponse({'message': 'Success', 'data' : 'result'})
+
+    if request.method == "POST":
+        params = json.loads(request.body)
+        AddWorkspace.objects.create(workspace=params.get('workspace'))
+        # AddWorkspace.objects.create(spacename = params.get('name'),workspace = params.get('workspace'))
+
+        return JsonResponse({'message': 'Success', 'data': "result"})
+
+    if request.method == "DELETE":
+        params = json.loads(request.body)
+        AddWorkspace.objects.filter(workspace=params.get('workspace')).delete()
+        # AddWorkspace.objects.filter(spacename = params.get('name'),workspace = params.get('workspace')).delete()
+        return JsonResponse({'message': 'Success', 'data': "result"})
+
+    if request.method == "PATCH":
+        params = json.loads(request.body)
+        AddWorkspace.objects.filter(id=params.get('id')).update(workspace='MgTask')
+        # AddWorkspace.objects.filter(id  = params.get('id')).update(spacename = 'MgTask')
+        return JsonResponse({'message': 'Success', 'data': "result"})
