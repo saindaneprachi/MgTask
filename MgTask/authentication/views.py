@@ -1,204 +1,272 @@
-from django.contrib.auth import authenticate,login
-from django.shortcuts import render
-from django.http import JsonResponse, request
-from django.views.decorators.csrf import csrf_exempt
-from .models import Login, ForgetPassword, ChangePassword, RegisterUser
 import json
-import random, math
 from django.contrib.auth.models import User
-from django.contrib.sites.shortcuts import  get_current_site
+from django.http import JsonResponse
+from django.contrib.auth import login, logout
+from django.views.decorators.http import require_http_methods
 from django.core.mail import send_mail
-from django.conf import settings
-
+from .models import UserSignUp
+from MgTask.settings import EMAIL_HOST_USER
 
 
 # Create your views here.
-@csrf_exempt
-def login(request, user, login=None):
-    if request.method == "GET":
-        result = []
-        logins = Login.objects.all()  #ORM
 
-        for login in logins:
+
+
+@require_http_methods(["POST"])
+def login_view(request):
+
+    params = json.loads(request.body)
+    queryset = User.objects.filter(
+        username=params['username']
+    )
+
+    if queryset.exists():
+        user = queryset.last()
+        is_password_correct = user.check_password(params['password'])
+        if is_password_correct:
+            login(request, user)
+
             data = {
-                "id": login.id,     #data is variable and it is dict.type
-               "username": login.username,
-               "email": login.email.id,
-               "password": login.password,
-
+                "id": user.id,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "email": user.email,
+                "last_login": user.last_login,
+                "data_of_joining": user.date_joined,
             }
-            result.append(data)
-        return JsonResponse({'message': 'Success', 'data': result})
-    if request.method == 'POST':
-        Username = request.POST['Username']
-        Password = request.POST['Password']
-        user = authenticate(request, username=Username, password=Password)
-        if user is not None:
-                login(request, user)
-                # Redirect to a success page
-                return JsonResponse({"message": "Login Successful"})
+
+            return JsonResponse({
+                "message": "Success",
+                "status": True,
+                "data": data
+            })
         else:
-                # Return an 'invalid login' error message.
-                return JsonResponse({"message" : "Login Failed"})
+            return JsonResponse({
+                "message": "Incorrect Password",
+                "status": False
+            })
 
-        # if request.method == "POST":
-        #     params = json.loads(request.body)
-        #     isinstance = Login.objects.create(username=params.get('username'),
-        #                                      email=User.objects.get(id=params.get('email')),
-        #                                      password=params.get('password'))
-        #     return JsonResponse({'message': 'Success', 'data': "result"})
-
-    if request.method == "PATCH":
-        params = json.loads(request.body)
-        isinstance = Login.objects.filter(email=params.get('email')).update(username='Tech world')
-        return JsonResponse({'message': 'Success', 'data': "result"})
-
-    if request.method == "DELETE":
-        params = json.loads(request.body)
-        isinstance = Login.objects.filter(username=params.get('username'),
-                                          email=User.objects.get(id=params.get('email')),
-                                          password=params.get('password')).delete()
-        return JsonResponse({'message':'Success','data': "result"})
+    else:
+        return JsonResponse({
+            "message": "User Not Found",
+            "status": False
+        })
 
 
-@csrf_exempt
-def logout(request):
+@require_http_methods(["POST"])
+def logout_view(request):
     logout(request)
-    # Redirect to a success page.
-    return JsonResponse({"message": "Logout Successful"})
+    return JsonResponse({
+            "message": "Logout Successfully.",
+            "status": True
+        })
 
-@csrf_exempt
-def register_user(request):
-    if request.method == "GET":
-        result = []
-        register_users = RegisterUser.objects.all()  #ORM
 
-        for register_user in register_users:
+@require_http_methods(["POST"])
+def signup_user_account(request):
+
+    params = json.loads(request.body)
+    otp = 1234
+
+    instance = UserSignUp.objects.create(
+        username=params.get('username'),
+        first_name=params.get('first_name'),
+        last_name=params.get('last_name'),
+        email=params.get('email'),
+        otp=otp
+    )
+    message = f'Your account creation otp is {otp}.'
+    send_mail(
+        'ClickUP Account Creation',
+        message,
+        EMAIL_HOST_USER,
+        [params.get('email')],
+        fail_silently=False,
+    )
+    return JsonResponse({
+        "message": "OTP Sent on email",
+        "status": True,
+        "data": instance.get_json()
+    })
+
+
+@require_http_methods(["POST"])
+def verify_signup_otp_and_create_user(request):
+    params = json.loads(request.body)
+    _id = params.get('id')
+    input_otp = params.get('otp')
+    username = params.get('username')
+    password = params.get('password')
+    confirm_password = params.get('confirm_password')
+
+    if not password == confirm_password:
+        return JsonResponse({
+            "message": "Both password not matched",
+            "status": False,
+        })
+
+    queryset: UserSignUp = UserSignUp.objects.filter(id=_id, username=username)
+    if queryset.exists():
+        instance = queryset.last()
+        if input_otp == instance.otp:
+            user_instance: User = User.objects.create(username=instance.username)
+            user_instance.set_password(password)
+            user_instance.first_name = instance.first_name
+            user_instance.last_name = instance.last_name
+            user_instance.email = instance.email
+            user_instance.save()
+
             data = {
-                "id": register_user.id,     #data is variable and it is dict.type
-                "username" : register_user.username,
-                "firstname" : register_user.firstname,
-                "lastname": register_user.lastname,
-                "email": register_user.email.id,
-                "newpassword": register_user.newpassword,
+                "id": user_instance.id,
+                "first_name": user_instance.first_name,
+                "last_name": user_instance.last_name,
+                "email": user_instance.email,
+                "last_login": user_instance.last_login,
+                "data_of_joining": user_instance.date_joined,
+            }
+            return JsonResponse({
+                "message": "Account created successfully",
+                "status": True,
+                "data": data
+            })
+        else:
+            return JsonResponse({
+                "message": "Invalid OTP",
+                "status": False,
+            })
+    else:
+        return JsonResponse({
+            "message": "Details not found",
+            "status": False
+        })
+
+@require_http_methods(["POST"])
+def forget_password(request):
+    params = json.loads(request.body)
+    otp = 1122
+    queryset = User.objects.filter(email=params['email'])
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    input_otp = params.get('otp')
+    email = params.get('email')
+    queryset: UserSignUp = UserSignUp.objects.filter(email=email)
+
+    if queryset.exists():
+        instance= queryset.last()
+        if input_otp == instance.otp:
+            user_instance: User = User.objects.filter(email=instance.email)
+            user_instance.save()
+
+            data ={
+                "id" : user_instance.id,
+                "email": user_instance.email,
 
             }
-        result.append(data)
-        return JsonResponse({'message': 'Success', 'data': "result"})
 
-    if request.method == "POST":
-        username = request.POST.get('username')
-        firstname = request.POST.get('firstname')
-        lastname = request.POST.get('lastname')
-        email = request.POST.get('email')
-        newpassword = request.POST.get('newpassword')
-        user = RegisterUser(username = username ,firstname= firstname,
-                            lastname = lastname, email = email,
-                            newpassword = newpassword)
-        domain_name = get_current_site(request).domain
-        token =  str(random.random()).split('.')[1]
-        user.token = token
-        link = f'http://{domain_name}/verify/{token}'
-        send_mail(
-            'Email verification',
-            f'please click{link} to verify your email!',
-            settings.EMAIL_host_USER,
-            [email],
-            fail_silently=False,
-        )
-        return JsonResponse({'message' : 'The email has been sent!'})
-        #http://my-doamin.com/verify/<token>
-        # params = json.loads(request.body)
-        # isinstance = ForgetPassword.objects.create(username=params.get('username'),
-        #                                            firstname=params.get('firstname'),
-        #                                            lastname=params.get('lastname'),
-        #                                            email=User.objects.get(id=params.get('email')),
-        #                                            newpassword=params.get('newpassword'))
-        # user = RegisterUser(username=username, firstname=firstname,
-        #                     lastname=lastname, email=email,
-        #                     newpassword=newpassword)
+            message = f'Your password reset otp is {otp}.'
+            send_mail(
+                'MgTask Account Password Reset',
+                 message,
+                 EMAIL_HOST_USER,
+                 [params.get('email')],
+                 fail_silently = False,
+             )
+            return JsonResponse({
+                "message": "OTP sent on email",
+                "status": True,
+                "data": instance.get_json()
+            })
+        else:
+            return JsonResponse({
+                "message" : "Invalid OTP",
+                "status" : False,
+            })
+    else:
+        return JsonResponse({
+            "message" : "User not found",
+            "status": False
+        })
 
-@csrf_exempt
-def verify (request,token):
-   user = RegisterUser.objects.filter(token = token)
-   try:
-       if user:
-           user.is_verified = True
-           msg = "Your email has beeen verified"
-           return JsonResponse({'msg' : msg})
-   except:
-       return JsonResponse({'message':'Check your token'})
+    #     params = json.loads(request.body)
+#     otp = 1122
+#     queryset = User.objects.filter(
+#         email=params['email'],
+#         otp=otp)
+#     if queryset.exists():
+#         for user in queryset:
+#              message = f'Your password reset otp is here {otp}'.
+#              send_mail(
+#             'Clickup Account Password Reset',
+#              message,
+#              EMAIL_HOST_USER,
+#              [params.get('email')],
+#              fail_silently = False,
+#         )
 
-@csrf_exempt
-def forgetpassword(request):
-    if request.method == "GET":
-        result = []
-        forgetpasswords = ForgetPassword.objects.all()  #ORM
+@require_http_methods(["POST"])
+def change_password(request):
+    params = json.loads(request.body)
+    current_password= params.get('current_password')
+    new_password = params.get('new_password')
+    confirm_password = params.get('confirm_password')
+    queryset = User.objects.filter(username= params['username'])
 
-        for forgetpassword in forgetpasswords:
-            data = {
-                "id": forgetpassword.id,     #data is variable and it is dict.type
-                "email" : forgetpassword.email.id,
-                "username" : forgetpassword.username,
-
-            }
-        result.append(data)
-        return JsonResponse({'message': 'Success', 'data': "result"})
-
-
-    if request.method == "POST":
-        params = json.loads(request.body)
-        isinstance = ForgetPassword.objects.create(username=params.get('username'),
-                                         email=User.objects.get(id=params.get('email')),
-                                         password=params.get('password'))
-        return JsonResponse({'message': 'Success', 'data': "result"})
-
-    if request.method == "DELETE":
-        params = json.loads(request.body)
-        isinstance = ForgetPassword.objects.filter(username=params.get('username'),
-                                          email=User.objects.get(id=params.get('email')),
-                                          password=params.get('password')).delete()
-        return JsonResponse({'message':'Success','data': "result"})
-    
-    if request.method == "PATHCH":
-        params = json.loads(request.body)
-        isinstance = ForgetPassword.objects.filter(email=params.get('email')).update(password='1234')
-        return JsonResponse({'message': 'Success', 'data': "result"})
-
-
-@csrf_exempt
-def changepassword(request):
-    if request.method == "GET":
-        result = []
-        changepasswords = ChangePassword.objects.all()  # ORM
-
-        for changepassword in changepasswords:
-            data = {
-                "id": changepassword.id,  # data is variable and it is dict.type
-                "email": changepassword.email.id,
-                "currentpassword": changepassword.changepassword,
-                "newpassword": changepassword.changepassword
-
-            }
-        result.append(data)
-        return JsonResponse({'message': 'Success', 'data': "result"})
-
-    if request.method == "POST":
-        params = json.loads(request.body)
-        isinstance = ChangePassword.objects.create(email=User.objects.get(id=params.get('email')),
-                                                   currentpassword=params.get('password'),newpassword=params.get('newpassword'))
-        return JsonResponse({'message': 'Success', 'data': "result"})
-
-    if request.method == "DELETE":
-        params = json.loads(request.body)
-        isinstance = ChangePassword.objects.filter(email=User.objects.get(id=params.get('email')),
-                                                   currentpassword=params.get('password'),newpassword=params.get('newpassword')).delete()
-        return JsonResponse({'message': 'Success', 'data': "result"})
-
-    if request.method == "PATHCH":
-        params = json.loads(request.body)
-        isinstance = ChangePassword.objects.filter(email=params.get('email')).update(newpassword='1234')
-        return JsonResponse({'message': 'Success', 'data': "result"})
+    if not new_password == confirm_password :
+        return JsonResponse({
+            "message": "Both password doesn't match",
+            "status": False,
+        })
+    # queryset:UserSignUp = UserSignUp.objects.filter(current_password= current_password, username=username )
+    if queryset.exist():
+       user = queryset.last()
+       is_password_correct= user.check_password(params['current_password'])
+       if is_password_correct:
+          User.set_password(new_password)
+          data ={
+               "username": user.username,
+               "current_password":user.current_password,
+               "new_password": user.new_password,
+               "confirm_password": user.confirm_password,
+          }
+          return JsonResponse({
+              "message": "Password reset done",
+              "status": True,
+              "data": data
+          })
+       else:
+            return JsonResponse({
+                "message": "Invalid OTP",
+                "status": True
+            })
+    else:
+        return JsonResponse({
+            "message": "Invalid OTP",
+            "status": False
+        })
 
 
 

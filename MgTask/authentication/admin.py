@@ -1,8 +1,10 @@
 from django.contrib import admin
-from .models import Login, ForgetPassword, ChangePassword
+from .models import UserSignUp
 
 # Register your models here.
+@admin.register(UserSignUp)
+class UserSignUpAdmin(admin.ModelAdmin):
+    list_display = ['id', 'first_name', 'last_name', 'email', 'email']
+    list_filter = ['first_name']
+    search_fields = ['first_name']
 
-admin.site.register(Login)
-admin.site.register(ForgetPassword)
-admin.site.register(ChangePassword)

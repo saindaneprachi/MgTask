@@ -38,6 +38,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'authentication',
+    'settings',
+    'MgTask',
     'project',
 ]
 
@@ -108,13 +110,13 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Kolkata'
 
-USE_I18N = True
-
-USE_L10N = True
-
-USE_TZ = True
+# USE_I18N = True
+#
+# USE_L10N = True
+#
+# USE_TZ = True
 
 
 # Static files (CSS, JavaScript, Images)
@@ -135,4 +137,4 @@ EMAIL_USE_TLS = True
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_HOST_USER = "prachisaindane93@gmail.com"
 EMAIL_HOST_PASSWORD = 'pklbzefmuyuocmfe'
-EMAIL_PORT = '587'
+EMAIL_PORT = 587

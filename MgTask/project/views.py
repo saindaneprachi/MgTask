@@ -1,8 +1,11 @@
+from time import timezone
+
 from django.shortcuts import render
 from django.http import JsonResponse
 from django.http import HttpResponse
+from django.views.decorators.http import require_http_methods
 from django.views.generic import ListView
-from .models import AddProject, CreateTask, AddWorkspace
+from .models import Project, Task, Developer, TaskStatus
 import json
 from django.contrib.auth.models import User
 from django.views.decorators.csrf import csrf_exempt
@@ -10,117 +13,146 @@ from django.views.decorators.csrf import csrf_exempt
 # Create your views here.
 #API's
 
-@csrf_exempt
-def addproject(request):
-    if request.method == "GET":
-        result = []
-        addprojects = AddProject.objects.filter(title__isnull=True)
-        for addproject in addprojects:
-            data = {
-                "id":addproject .id,     #data is variable and it is dict.type
-               "name": addproject.title,
-               "company": addproject.company.id,
-               "assign": addproject.assign,
-                "dead_line": addproject.dead_line,
-                "add_date": addproject.add_date,
-                 "upd_date": addproject.upd_date,
-                 "status": addproject.status,
-                 "description": addproject.description
-
-            }
-            result.append(data)
-        return JsonResponse({'message': 'Success', 'data': result})
-
+@require_http_methods(["POST", "GET", "PATCH", "DELETE"])
+def project_view(request):
     if request.method == "POST":
         params = json.loads(request.body)
-        isinstance = AddProject.objects.create(name=params.get('name'),
-                                         company=User.objects.get(id=params.get('company')),
-                                         assign=params.get('assign'),dead_line=params.get('dead_line'),
-                                         add_date=params.get('add_date'),upd_date=params.get('upd_date'),
-                                         status= params.get('status'), description= params.get('descrition'))
-        return JsonResponse({'message': 'Success', 'data': "result"})
+        instance = Project.objects.create(**params)
+        return JsonResponse({
+            "message": "success",
+            "status":True,
+            "data":[instance.get_json]
+        })
+
+    if request.method == "GET":
+        data = []
+        queryset = Project.objects.all()
+        for instance in queryset:
+            data.append(instance.get_json())
+        return JsonResponse({
+            "message" : "success",
+            "status" : True,
+            "data" : data
+        })
 
     if request.method == "DELETE":
-        params = json.loads(request.body)
-        isinstance = AddProject.objects.filter(name=params.get('name'),
-                                         company=User.objects.get(id=params.get('company')),
-                                         assign=params.get('assign'),dead_line=params.get('dead_line'),
-                                         add_date=params.get('add_date'),upd_date=params.get('upd_date'),
-                                         status= params.get('status'), description= params.get('descrition')).delete()
-        return JsonResponse({'message':'Success','data': "result"})
+        data = []
+        return JsonResponse({
+            "message" : "DELETED SUCCESSFULLY",
+             "status" : True,
+        })
 
     if request.method == "PATCH":
-       params = json.loads(request.body)
-       AddProject.objects.filter(add_date=params.get('author')).update(name='Tech world')
-       return JsonResponse({'message': 'Success', 'data': "result"})
+        data = []
+        queryset = Project.objects.filter()
 
-
-@csrf_exempt
-def createtask(request):
-    if request.method == "GET":
-        result = []
-        createtasks = CreateTask.objects.filter(title__isnull=True)
-        for createtask in createtasks:
-            data = {
-                "id": createtask.id,  # data is variable and it is dict.type
-                "project": createtask.project,
-                "assign": createtask.assign,
-                "task_name": createtask.task_name,
-                "status": createtask.status,
-                "due": createtask.due,
-            }
-            result.append(data)
-        return JsonResponse({'message': 'Success', 'data': "result"})
-
+@require_http_methods(["POST", "GET", "PATCH", "DELETE"])
+def task_view(request):
     if request.method == "POST":
         params = json.loads(request.body)
-        isinstance = CreateTask.objects.create(project=params.get('project'),
-                                               assign=params.get('assign'), task_name=params.get('task_name'),
-                                               status=params.get('status'), due=params.get('due'))
-        return JsonResponse({'message': 'Success', 'data': "result"})
-
+        if not params.get('title'):
+            return JsonResponse({
+                "message" : "field missing",
+                "status" : False,
+            })
+        instance = Task.objects.create(**params)
+        return JsonResponse({
+            "message": "field missing",
+            "status": False,
+        })
+    if request.method == "GET":
+        data = []
+        queryset = Task.objects.all()
+        for instance in queryset:
+            data.append(instance.get_json())
+        return JsonResponse({
+            "message" : "success",
+            "status" : True,
+        })
     if request.method == "DELETE":
-        params = json.loads(request.body)
-        isinstance = CreateTask.objects.filter(project=params.get('project'),
-                                               assign=params.get('assign'), task_name=params.get('task_name'),
-                                               status=params.get('status'), due=params.get('due')).delete()
-        return JsonResponse({'message': 'Success', 'data': "result"})
+        data = []
+        return JsonResponse({
+            "message" : "success",
+            "status" : True,
+        })
 
     if request.method == "PATCH":
-        params = json.loads(request.body)
-        CreateTask.objects.filter(task_name=params.get('')).update(assign='prachi')
-        return JsonResponse({'message': 'Success', 'data': "result"})
+        data = []
+        queryset = Task.objects.filter(title='xyz').update(assign="prachi")
 
 
-@csrf_exempt
-def addworkspace(request):
-    if request.method == "GET":
-        result = []
-        addworkspaces = AddWorkspace.objects.all()
-        for addworkspace in addworkspaces:
-            data = {
-                'id' : addworkspace.id,
-                # "spacename": addworkspace.name,
-                "workspace" : addworkspace.workspace,
-            }
-            result.append(data)
-        return JsonResponse({'message': 'Success', 'data' : 'result'})
 
+@require_http_methods(["POST","GET","PATCH","DELETE"])
+def task_status_view(request):
     if request.method == "POST":
         params = json.loads(request.body)
-        AddWorkspace.objects.create(workspace=params.get('workspace'))
-        # AddWorkspace.objects.create(spacename = params.get('name'),workspace = params.get('workspace'))
-
-        return JsonResponse({'message': 'Success', 'data': "result"})
-
+        if not params.get('title'):
+            return JsonResponse({
+                "message" : "field missing",
+                "status" : False,
+            })
+        instance = Task.objects.create(**params)
+        return JsonResponse({
+            "message": "field missing",
+            "status": False,
+        })
+    if request.method == "GET":
+        data = []
+        queryset = Task.objects.all()
+        for instance in queryset:
+            data.append(instance.get_json())
+        return JsonResponse({
+            "message" : "success",
+            "status" : True,
+        })
     if request.method == "DELETE":
-        params = json.loads(request.body)
-        AddWorkspace.objects.filter(workspace=params.get('workspace')).delete()
-        # AddWorkspace.objects.filter(spacename = params.get('name'),workspace = params.get('workspace')).delete()
-        return JsonResponse({'message': 'Success', 'data': "result"})
+        data = []
+        return JsonResponse({
+            "message" : "success",
+            "status" : True,
+        })
 
     if request.method == "PATCH":
+        data = []
+        queryset = Task.objects.filter(title='xyz').update(assign="prachi")
+
+
+@require_http_methods(["POST", "GET", "PATCH", "DELETE"])
+def developer_view(request):
+    if request.method == "POST":
         params = json.loads(request.body)
-        AddWorkspace.objects.filter(id=params.get('id')).update(workspace='MgTask')
-        # AddWorkspace.objects.filter(id  = params.get('id')).update(spacename = 'MgTask')
-        return JsonResponse({'message': 'Success', 'data': "result"})
+        if not params.get('name'):
+            return JsonResponse({
+                "message": "field missing",
+                "status": False,
+            })
+        instance = Task.objects.create(**params)
+        return JsonResponse({
+            "message": "field missing",
+            "status": False,
+        })
+    if request.method == "GET":
+        data = []
+        queryset = Task.objects.all()
+        for instance in queryset:
+            data.append(instance.get_json())
+        return JsonResponse({
+            "message": "success",
+            "status": True,
+        })
+    if request.method == "DELETE":
+        data = []
+        return JsonResponse({
+            "message": "success",
+            "status": True,
+        })
+
+    if request.method == "PATCH":
+        data = []
+        queryset = Task.objects.filter(id = 2).update(name="prachi")
+
+
+@require_http_methods
+
+
+
